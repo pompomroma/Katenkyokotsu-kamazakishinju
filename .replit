@@ -1,0 +1,22 @@
+run = "pip install -q -r requirements.txt && python main.py"
+entrypoint = "main.py"
+modules = ["python-3.11"]
+hidden = [".pythonlibs", ".cache"]
+
+[nix]
+channel = "stable-24_05"
+
+[env]
+PORT = "8080"
+PYTHONUNBUFFERED = "1"
+
+[deployment]
+run = ["sh", "-c", "pip install -q -r requirements.txt && python main.py"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[interpreter]
+command = ["python3"]

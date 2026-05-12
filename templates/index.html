@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>V·I·S·I·O·N</title>
+  <link rel="stylesheet" href="/static/css/style.css?v=1" />
+</head>
+<body>
+
+  <!-- 1.  Live rear-camera feed (full-screen background) -->
+  <video id="cam" autoplay muted playsinline></video>
+  <canvas id="snap" hidden></canvas>
+
+  <!-- 2.  Scan-sweep flash layer -->
+  <div id="scan-flash"></div>
+
+  <!-- 3.  HUD overlay -->
+  <div id="hud">
+
+    <!-- Top status bar -->
+    <header class="hud-top">
+      <div class="logo">&#9646; V&middot;I&middot;S&middot;I&middot;O&middot;N</div>
+      <div class="status">
+        <span class="status-dot" id="mic-status">MIC</span>
+        <span class="status-dot" id="cam-status">CAM</span>
+        <span class="status-dot" id="net-status">NET</span>
+        <span class="status-dot" id="ai-status">AI</span>
+      </div>
+      <div class="clock" id="clock">00:00:00</div>
+    </header>
+
+    <!-- Centered scope reticle (tracks targets) -->
+    <div id="reticle">
+      <div class="ret-ring"></div>
+      <div class="ret-inner"></div>
+      <div class="ret-cross-h"></div>
+      <div class="ret-cross-v"></div>
+      <div class="ret-corner tl"></div>
+      <div class="ret-corner tr"></div>
+      <div class="ret-corner bl"></div>
+      <div class="ret-corner br"></div>
+      <div class="ret-tick t"></div>
+      <div class="ret-tick r"></div>
+      <div class="ret-tick b"></div>
+      <div class="ret-tick l"></div>
+      <div class="ret-label" id="ret-label"></div>
+      <div class="ret-range" id="ret-range">RNG &mdash;&mdash;</div>
+    </div>
+
+    <!-- Side panel: live AI response -->
+    <aside id="response-panel" class="hud-panel">
+      <div class="panel-header">&#9656; VISION OUTPUT</div>
+      <div class="panel-body" id="response-text">Standing by, sir.</div>
+    </aside>
+
+    <!-- Scan-result floating card -->
+    <aside id="scan-panel" class="hud-panel hidden">
+      <div class="panel-header">&#9656; SCAN RESULTS
+        <span id="scan-close" class="x-btn">&times;</span>
+      </div>
+      <div class="panel-body" id="scan-text"></div>
+    </aside>
+
+    <!-- Live voice transcript -->
+    <div id="transcript">
+      <span class="trans-prompt">&#9660;</span>
+      <span id="trans-text">Awaiting voice input...</span>
+    </div>
+
+    <!-- Translucent browser overlay -->
+    <section id="browser-pane" class="hidden">
+      <header class="browser-head">
+        <span class="b-dot"></span>
+        <span class="b-title" id="browser-title">WEB</span>
+        <span class="b-close" id="browser-close" title="close">&times;</span>
+      </header>
+      <iframe id="browser-frame"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+              referrerpolicy="no-referrer"></iframe>
+      <div class="browser-foot" id="browser-foot"></div>
+    </section>
+
+    <!-- Bottom button rail -->
+    <footer class="hud-bottom">
+      <button id="btn-mute" class="hud-btn" title="mute speech">&#127908; MUTE</button>
+      <button id="btn-scan" class="hud-btn primary" title="scan center object">&#10753; SCAN</button>
+      <button id="btn-listen" class="hud-btn" title="toggle mic">&#9210; LISTEN</button>
+    </footer>
+  </div>
+
+  <!-- 4.  Boot splash (browsers require a user gesture before mic/cam) -->
+  <div id="boot">
+    <div class="boot-frame">
+      <div class="boot-title">V&middot;I&middot;S&middot;I&middot;O&middot;N</div>
+      <div class="boot-sub">AUGMENTED REALITY ASSISTANT</div>
+      <div class="boot-hint">
+        Allow camera + microphone when prompted.<br/>
+        Best on a phone in landscape with a Bluetooth headset.
+      </div>
+      <button id="boot-btn">&#9654; TAP TO ACTIVATE</button>
+      <div class="boot-foot">POWERED BY NVIDIA NIM</div>
+    </div>
+  </div>
+
+  <!-- Real-time on-device object tracker (free, no API) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+  <script src="/static/js/app.js?v=1"></script>
+</body>
+</html>

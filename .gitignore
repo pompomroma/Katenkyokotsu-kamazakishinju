@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+.pythonlibs/
+.cache/
+.replit.local
+.upm/
+*.log
+.DS_Store
