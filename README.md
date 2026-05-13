@@ -69,7 +69,12 @@ without touching the code by setting the two environment variables
    manually).  The included `.replit` and `replit.nix` make Replit detect it
    automatically; just press **Run** once and the deps install.
 2. Open **Tools  →  Secrets** and add:
-   * `NVIDIA_API_KEY` = `nvapi-...` (the key from build.nvidia.com)
+   * `TEXT_API_KEY`   = `nvapi-...` (key from build.nvidia.com - used for the chat model)
+   * `VISUAL_API_KEY` = `nvapi-...` (key from build.nvidia.com - used for the vision model)
+
+   Both can be the **same** `nvapi-...` key from a single NVIDIA developer
+   account, or two separate keys if you want to split chat vs vision usage
+   across different accounts.
 3. Press **Run**.  A web URL is shown.
 4. On your **phone**, open that URL in **Chrome (Android)** or **Safari
    (iOS 16+)**.  Tap *Activate*, allow camera and microphone, put your phone

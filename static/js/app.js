@@ -612,11 +612,14 @@ window.addEventListener("load", () => {
   else setTimeout(loadDetector, 2500);
 });
 
-/* health check on the API key */
+/* health check on the API keys */
 fetch("/api/health").then(r => r.json()).then(j => {
-  if (!j.key_set) {
-    showResponse("Backend started, but NVIDIA_API_KEY is not configured. " +
-                 "Add it in Replit Secrets and restart.");
+  const missing = [];
+  if (!j.text_key_set)   missing.push("TEXT_API_KEY");
+  if (!j.visual_key_set) missing.push("VISUAL_API_KEY");
+  if (missing.length) {
+    showResponse("Backend started, but " + missing.join(" + ") +
+                 " not configured. Add in Replit Secrets and restart.");
     setStatus("ai-status", false, "AI✕");
   } else {
     setStatus("ai-status", true, "AI");

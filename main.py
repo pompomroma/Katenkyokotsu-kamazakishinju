@@ -4,7 +4,9 @@ VISION  -  E.D.I.T.H.-inspired AR assistant backend.
 A thin Flask proxy that bridges the in-browser HUD to NVIDIA's NIM API
 (OpenAI-compatible) at https://integrate.api.nvidia.com/v1.
 
-Set NVIDIA_API_KEY in the Replit "Secrets" panel before running.
+Set TEXT_API_KEY and VISUAL_API_KEY in the Replit "Secrets" panel before
+running.  Both keys are NVIDIA `nvapi-...` keys from build.nvidia.com -
+they may point at the same key or two separate ones.
 """
 
 import os
@@ -18,7 +20,8 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("vision")
 
-NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "").strip()
+TEXT_API_KEY = os.environ.get("TEXT_API_KEY", "").strip()
+VISUAL_API_KEY = os.environ.get("VISUAL_API_KEY", "").strip()
 NVIDIA_API_BASE = os.environ.get("NVIDIA_API_BASE",
                                  "https://integrate.api.nvidia.com/v1").rstrip("/")
 
@@ -41,15 +44,15 @@ SYSTEM_PROMPT = (
 )
 
 
-def _nvidia_post(payload, timeout=60):
-    if not NVIDIA_API_KEY:
-        return None, ("NVIDIA_API_KEY is not set on the server. "
+def _nvidia_post(payload, api_key, key_name, timeout=60):
+    if not api_key:
+        return None, (f"{key_name} is not set on the server. "
                       "Add it under Replit > Tools > Secrets.")
     try:
         r = requests.post(
             f"{NVIDIA_API_BASE}/chat/completions",
             headers={
-                "Authorization": f"Bearer {NVIDIA_API_KEY}",
+                "Authorization": f"Bearer {api_key}",
                 "Accept": "application/json",
                 "Content-Type": "application/json",
             },
@@ -81,7 +84,8 @@ def index():
 def health():
     return jsonify({
         "ok": True,
-        "key_set": bool(NVIDIA_API_KEY),
+        "text_key_set": bool(TEXT_API_KEY),
+        "visual_key_set": bool(VISUAL_API_KEY),
         "text_model": TEXT_MODEL,
         "vision_model": VISION_MODEL,
     })
@@ -109,7 +113,7 @@ def chat():
         "top_p": 0.9,
         "max_tokens": 320,
         "stream": False,
-    }, timeout=45)
+    }, TEXT_API_KEY, "TEXT_API_KEY", timeout=45)
     if err:
         log.warning("chat error: %s", err)
         return jsonify({"error": err}), 502
@@ -171,7 +175,7 @@ def vision():
         "max_tokens": 400,
         "stream": False,
     }
-    reply, err = _nvidia_post(payload, timeout=75)
+    reply, err = _nvidia_post(payload, VISUAL_API_KEY, "VISUAL_API_KEY", timeout=75)
     if err:
         log.warning("vision error: %s", err)
         return jsonify({"error": err}), 502
@@ -180,6 +184,6 @@ def vision():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    log.info("VISION starting on 0.0.0.0:%d  (key set: %s)",
-             port, bool(NVIDIA_API_KEY))
+    log.info("VISION starting on 0.0.0.0:%d  (text key: %s, visual key: %s)",
+             port, bool(TEXT_API_KEY), bool(VISUAL_API_KEY))
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
