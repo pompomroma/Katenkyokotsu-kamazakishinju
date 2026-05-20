@@ -33,6 +33,12 @@ or in a $5 Cardboard headset.
 | `scan <the thing you describe>`                | Snapshots the camera, sends it to the vision model, shows BRAND / PRICE / FEATURES, and reads the headline aloud |
 | `aim at <object>` / `find <object>`            | Moves the scope reticle onto the target and tracks it live (real-time on-device tracker for common objects, vision-model fallback for anything else) |
 | `stop aiming`                                  | Clears the target lock                                                                        |
+| `scan article` / `capture article` / `read article` | Starts article-capture mode and OCRs the page in front of the camera into a structured block list (verbatim words, paragraph breaks, headings, captions, quotes) |
+| `next page`                                    | Capture the next page or column of the same article                                           |
+| `save article` / `build pdf`                   | Compile every captured page into a PDF (title, byline, headings, paragraphs, quotes, captions, page numbers, attribution footer) |
+| `download article` / `download pdf`            | Send the PDF to the phone's downloads folder.  Also works as a button in the article card.  If you skip `save article` it auto-builds first |
+| `discard article`                              | Throw away the in-progress article                                                            |
+| `stop aiming`                                  | Clears the target lock                                                                        |
 | **anything spoken while the AI is talking**    | Interrupts the AI mid-sentence and starts processing your new request                         |
 
 ---

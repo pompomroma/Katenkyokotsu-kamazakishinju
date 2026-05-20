@@ -66,6 +66,11 @@ const state = {
   loop:      null,
   busy:      false,
   lastUserUtterance: 0,
+  /* article-capture state */
+  article:        null,   // { title, byline, date, blocks[], pages, continues }
+  articlePdfBlob: null,
+  articlePdfStale: true,
+  articleFile:    null,   // last filename used
 };
 
 const $ = (id) => document.getElementById(id);
@@ -123,14 +128,14 @@ async function startCamera() {
   }
 }
 
-function snapshot(maxW = 768) {
+function snapshot(maxW = 768, quality = 0.72) {
   const vw = video.videoWidth, vh = video.videoHeight;
   if (!vw || !vh) return null;
   const scale = Math.min(1, maxW / vw);
   canvas.width  = Math.round(vw * scale);
   canvas.height = Math.round(vh * scale);
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.72);
+  return canvas.toDataURL("image/jpeg", quality);
 }
 
 /* ------------------------------------------------------------
@@ -279,6 +284,32 @@ function handleUtterance(text) {
     reply(query
       ? `Opening ${m[1]} for ${query}.`
       : `Opening ${m[1]}.`, true);
+    return;
+  }
+
+  /* ---- ARTICLE CAPTURE (must come before generic SCAN) ---- */
+  if (/\b(scan|capture|read|copy|grab|photocopy)\s+(?:the\s+|this\s+|that\s+|an?\s+)?(?:article|page|document|paper|text|column|story)\b/.test(utt) ||
+      /\b(start|begin)\s+(?:an?\s+)?article(?:\s+capture)?\b/.test(utt) ||
+      /\b(ocr|transcribe)\b/.test(utt)) {
+    startArticleScan();
+    return;
+  }
+  if (state.article && /\b(next\s+page|another\s+page|add\s+page|capture\s+(?:the\s+)?next|next\s+section|continue\s+article|more\s+text)\b/.test(utt)) {
+    captureArticlePage();
+    return;
+  }
+  if (state.article && /\b(save|finish|compile|build|generate|make|create|end|stop|done\s+with)\s+(?:the\s+|my\s+)?(?:article|pdf|capture)\b/.test(utt)) {
+    finishArticle();
+    return;
+  }
+  if (/\b(download|export|give\s+me|send\s+me|save\s+to\s+(?:my\s+)?(?:phone|device))\s+(?:the\s+|my\s+)?(?:article|pdf|file|capture)\b/.test(utt) ||
+      /\b(download|export)\s+(?:it|that)\b/.test(utt)) {
+    downloadArticle();
+    return;
+  }
+  if (state.article && /\b(discard|cancel|throw\s+away|delete|trash)\s+(?:the\s+|my\s+)?article\b/.test(utt)) {
+    discardArticle();
+    reply("Article discarded.", true);
     return;
   }
 
@@ -544,7 +575,232 @@ function stopAiming() {
 }
 
 /* ------------------------------------------------------------
-  11.  General chat
+  11.  ARTICLE CAPTURE  -  OCR -> structured blocks -> PDF
+   ------------------------------------------------------------ */
+function showArticlePanel()   { $("article-panel").classList.remove("hidden"); }
+function hideArticlePanel()   { $("article-panel").classList.add("hidden"); }
+
+function discardArticle() {
+  state.article = null;
+  state.articlePdfBlob = null;
+  state.articlePdfStale = true;
+  hideArticlePanel();
+}
+
+function updateArticlePanel() {
+  const a = state.article;
+  if (!a) return;
+  $("article-title").textContent = a.title || "(untitled)";
+  $("article-meta").textContent =
+    `${a.pages} page${a.pages !== 1 ? "s" : ""} · ` +
+    `${a.blocks.length} block${a.blocks.length !== 1 ? "s" : ""}` +
+    (a.continues ? " · MORE BELOW" : "");
+  const preview = $("article-preview");
+  preview.innerHTML = "";
+  const last = a.blocks.slice(-6);
+  for (const b of last) {
+    const line = document.createElement("div");
+    line.className = "art-line";
+    const snip = (b.text || "").slice(0, 110);
+    line.innerHTML =
+      `<span class="art-type">${escapeHtml(b.type.toUpperCase())}</span>` +
+      escapeHtml(snip) + (b.text.length > 110 ? "…" : "");
+    preview.appendChild(line);
+  }
+  /* highlight DOWNLOAD when a fresh PDF is ready */
+  $("btn-art-dl").classList.toggle("ready",
+    !!state.articlePdfBlob && !state.articlePdfStale);
+}
+
+async function startArticleScan() {
+  if (state.busy) return;
+  state.article = {
+    title: null, byline: null, date: null,
+    blocks: [], pages: 0, continues: false,
+  };
+  state.articlePdfBlob = null;
+  state.articlePdfStale = true;
+  showArticlePanel();
+  updateArticlePanel();
+  reply("Article capture armed. Hold the page steady - capturing now.", true);
+  await captureArticlePage();
+}
+
+async function captureArticlePage() {
+  if (!state.article) { reply("No article in progress. Say 'scan article' first.", true); return; }
+  if (state.busy) return;
+  /* a higher-res snapshot keeps OCR accurate */
+  const img = snapshot(1024, 0.82);
+  if (!img) { reply("Camera not ready.", true); return; }
+
+  state.busy = true;
+  setStatus("ai-status", true, "AI*");
+  $("scan-flash").classList.remove("active");
+  void $("scan-flash").offsetWidth;
+  $("scan-flash").classList.add("active");
+
+  try {
+    const r = await fetch("/api/article", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: img }),
+    });
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    const a = j.article;
+    state.article.pages++;
+    if (a.title  && !state.article.title)  state.article.title  = a.title;
+    if (a.byline && !state.article.byline) state.article.byline = a.byline;
+    if (a.date   && !state.article.date)   state.article.date   = a.date;
+    state.article.blocks.push(...(a.blocks || []));
+    state.article.continues = !!a.continues;
+    state.articlePdfStale = true;
+    updateArticlePanel();
+
+    const blockCount = state.article.blocks.length;
+    const tail = a.continues
+      ? "Text continues. Aim at the next section and say 'next page', or 'save article' to finish."
+      : "End of page. Say 'next page' for more, or 'save article' to build the PDF.";
+    reply(`Page ${state.article.pages} captured. ${blockCount} block${blockCount===1?"":"s"} total. ${tail}`, true);
+  } catch (e) {
+    reply("Article capture failed: " + e.message, true);
+  } finally {
+    state.busy = false;
+    setStatus("ai-status", true, "AI");
+  }
+}
+
+function finishArticle() {
+  if (!state.article || !state.article.blocks.length) {
+    reply("Nothing captured yet. Say 'scan article' first.", true);
+    return;
+  }
+  buildArticlePdf();
+  const a = state.article;
+  reply(
+    `PDF ready: "${a.title || "untitled"}" - ${a.blocks.length} blocks across ` +
+    `${a.pages} page${a.pages!==1?"s":""}. ` +
+    `Tap DOWNLOAD or say "download article".`,
+    true
+  );
+}
+
+function buildArticlePdf() {
+  const jspdfNS = window.jspdf || window.jsPDF || null;
+  const jsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
+  if (!jsPDF) { reply("PDF engine missing. Reload the page.", true); return; }
+
+  const a = state.article;
+  const doc  = new jsPDF({ unit: "pt", format: "letter" });
+  const left = 56, right = 56, top = 56, bottom = 56;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const maxW  = pageW - left - right;
+  let y = top;
+
+  function newPage() { doc.addPage(); y = top; }
+  function setFont(size, weight, style) {
+    doc.setFontSize(size);
+    doc.setFont("helvetica", weight === "bold" ? "bold"
+                          : style === "italic" ? "italic" : "normal");
+  }
+  function write(text, size, weight, style, indent) {
+    indent = indent || 0;
+    setFont(size, weight, style);
+    const lh = size * 1.32;
+    const lines = doc.splitTextToSize(text, maxW - indent);
+    for (const ln of lines) {
+      if (y + lh > pageH - bottom) newPage();
+      doc.text(ln, left + indent, y + lh * 0.78);
+      y += lh;
+    }
+    y += lh * 0.32;     // small paragraph gap
+  }
+
+  /* masthead */
+  if (a.title)  write(a.title, 20, "bold");
+  if (a.byline) write(a.byline, 11, null, "italic");
+  if (a.date)   write(a.date,   10, null, "italic");
+  if (a.title || a.byline || a.date) {
+    y += 4;
+    if (y + 12 > pageH - bottom) newPage();
+    doc.setDrawColor(120);
+    doc.line(left, y, pageW - right, y);
+    y += 14;
+  }
+
+  /* body blocks */
+  for (const b of a.blocks) {
+    const t = b.text || "";
+    switch ((b.type || "paragraph")) {
+      case "heading":    write(t, 16, "bold"); break;
+      case "subheading": write(t, 13, "bold"); break;
+      case "quote":      write("“" + t + "”", 12, null, "italic", 22); break;
+      case "caption":    write(t, 10, null, "italic"); break;
+      case "list_item":  write("•  " + t, 12, null, null, 18); break;
+      case "footer":     write(t,  9, null, "italic"); break;
+      default:           write(t, 12); break;
+    }
+  }
+
+  /* attribution footer on every page */
+  const total = doc.internal.getNumberOfPages();
+  const stamp = new Date().toLocaleString();
+  for (let p = 1; p <= total; p++) {
+    doc.setPage(p);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(110);
+    doc.text(`Scanned with VISION on ${stamp}  ·  Page ${p} of ${total}  ·  Personal / educational use.`,
+             left, pageH - 22);
+    doc.setTextColor(0);
+  }
+
+  state.articlePdfBlob = doc.output("blob");
+  state.articlePdfStale = false;
+  state.articleFile = articleFilename();
+  updateArticlePanel();
+}
+
+function articleFilename() {
+  const t = (state.article?.title || "article")
+    .replace(/[^\w\d \-]+/g, "")
+    .trim()
+    .slice(0, 60)
+    .replace(/\s+/g, "_");
+  const d = new Date().toISOString().slice(0, 10);
+  return `${t || "article"}-${d}.pdf`;
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+
+function downloadArticle() {
+  if (!state.article || !state.article.blocks.length) {
+    reply("No article to download. Say 'scan article' to start.", true);
+    return;
+  }
+  /* auto-build if the user skipped "save article" or edited since */
+  if (!state.articlePdfBlob || state.articlePdfStale) buildArticlePdf();
+  if (!state.articlePdfBlob) return;
+  triggerDownload(state.articlePdfBlob, state.articleFile || articleFilename());
+  reply(`Downloading ${state.articleFile}.`, true);
+}
+
+$("article-close").addEventListener("click", discardArticle);
+$("btn-art-next").addEventListener("click", () => captureArticlePage());
+$("btn-art-save").addEventListener("click", () => finishArticle());
+$("btn-art-dl").addEventListener("click",   () => downloadArticle());
+
+/* ------------------------------------------------------------
+  12.  General chat
    ------------------------------------------------------------ */
 async function chatWithAI(message) {
   if (state.busy) return;
@@ -578,7 +834,7 @@ function reply(text, tts) {
 }
 
 /* ------------------------------------------------------------
-  12.  Misc - clock, net, mute, buttons, boot
+  13.  Misc - clock, net, mute, buttons, boot
    ------------------------------------------------------------ */
 function tickClock() {
   const d = new Date(), p = n => String(n).padStart(2, "0");
@@ -627,7 +883,7 @@ fetch("/api/health").then(r => r.json()).then(j => {
 }).catch(() => {});
 
 /* ------------------------------------------------------------
-  13.  Activation (mic + cam need a user gesture)
+  14.  Activation (mic + cam need a user gesture)
    ------------------------------------------------------------ */
 async function activate() {
   if (state.booted) return;

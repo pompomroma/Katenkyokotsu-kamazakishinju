@@ -67,6 +67,24 @@
       <div class="panel-body" id="scan-text"></div>
     </aside>
 
+    <!-- Article-capture floating card -->
+    <aside id="article-panel" class="hud-panel hidden">
+      <div class="panel-header">&#9656; ARTICLE CAPTURE
+        <span id="article-close" class="x-btn">&times;</span>
+      </div>
+      <div class="panel-body">
+        <div id="article-title" class="art-title">(awaiting title)</div>
+        <div id="article-meta"  class="art-meta">0 pages &middot; 0 blocks</div>
+        <div id="article-preview" class="art-preview"></div>
+        <div class="art-actions">
+          <button id="btn-art-next">+ NEXT PAGE</button>
+          <button id="btn-art-save">&#9646; BUILD PDF</button>
+          <button id="btn-art-dl" class="primary">&#8595; DOWNLOAD</button>
+        </div>
+        <div class="art-foot">Personal / educational use.</div>
+      </div>
+    </aside>
+
     <!-- Live voice transcript -->
     <div id="transcript">
       <span class="trans-prompt">&#9660;</span>
@@ -111,6 +129,8 @@
   <!-- Real-time on-device object tracker (free, no API) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
-  <script src="/static/js/app.js?v=1"></script>
+  <!-- Client-side PDF builder for the article-capture feature -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="/static/js/app.js?v=2"></script>
 </body>
 </html>

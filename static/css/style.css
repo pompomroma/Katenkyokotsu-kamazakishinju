@@ -247,11 +247,89 @@ body::before {
 
 #response-panel { top: 64px; right: 16px; }
 #scan-panel     { top: 64px; left:  16px; }
+#article-panel  { top: 64px; left:  16px; width: 320px; z-index: 6; }
 
-#scan-panel.hidden, #browser-pane.hidden { display: none; }
+#scan-panel.hidden, #browser-pane.hidden, #article-panel.hidden { display: none; }
 
 #scan-text > div { padding: 2px 0; }
 #scan-text .field { color: var(--hud-amber); letter-spacing: .15em; font-size: 11px; }
+
+/* -------- article-capture card -------- */
+.art-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--hud-amber);
+  text-shadow: 0 0 4px var(--hud-amber);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.art-meta {
+  font-size: 10px;
+  opacity: .75;
+  letter-spacing: .2em;
+  margin-bottom: 10px;
+}
+.art-preview {
+  font-size: 11px;
+  line-height: 1.5;
+  max-height: 160px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding: 6px 8px;
+  border: 1px dashed var(--hud-dim);
+  background: rgba(0, 8, 14, .35);
+}
+.art-preview:empty::before {
+  content: "(no text captured yet)";
+  opacity: .5;
+  font-style: italic;
+}
+.art-line { padding: 2px 0; }
+.art-type {
+  color: var(--hud-amber);
+  font-size: 9px;
+  letter-spacing: .2em;
+  margin-right: 4px;
+}
+.art-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.art-actions button {
+  flex: 1;
+  min-width: 92px;
+  background: var(--hud-bg);
+  border: 1px solid var(--hud-cyan);
+  color: var(--hud-cyan);
+  padding: 7px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: .2em;
+  cursor: pointer;
+  text-shadow: 0 0 3px var(--hud-cyan);
+}
+.art-actions button:active { background: rgba(92, 246, 255, .2); }
+.art-actions button.primary {
+  border-color: var(--hud-amber);
+  color: var(--hud-amber);
+  text-shadow: 0 0 3px var(--hud-amber);
+  box-shadow: 0 0 8px rgba(255, 177, 59, .35);
+}
+.art-actions button.primary.ready {
+  animation: pulse-amber 1.6s infinite;
+}
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 8px  rgba(255, 177, 59, .35); }
+  50%      { box-shadow: 0 0 16px rgba(255, 177, 59, .9);  }
+}
+.art-foot {
+  font-size: 9px;
+  opacity: .55;
+  letter-spacing: .2em;
+  text-align: center;
+}
 
 /* ============================================================
    transcript

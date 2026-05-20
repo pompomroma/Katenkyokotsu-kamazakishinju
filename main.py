@@ -11,6 +11,7 @@ they may point at the same key or two separate ones.
 
 import os
 import json
+import re
 import logging
 import time
 import requests
@@ -180,6 +181,102 @@ def vision():
         log.warning("vision error: %s", err)
         return jsonify({"error": err}), 502
     return jsonify({"reply": reply, "mode": mode})
+
+
+@app.route("/api/article", methods=["POST"])
+def article():
+    """OCR a single article page into a structured JSON block list.
+
+    The client accumulates blocks across calls (one call per camera
+    snapshot) and renders the final PDF locally via jsPDF.
+    """
+    data = request.get_json(silent=True) or {}
+    image_b64 = (data.get("image") or "").strip()
+    if not image_b64:
+        return jsonify({"error": "no image provided"}), 400
+    if image_b64.startswith("data:"):
+        image_b64 = image_b64.split(",", 1)[1]
+
+    instruction = (
+        "You are an OCR engine inside AR glasses.  Read the article in the "
+        "image and reply with ONLY a single JSON object - no markdown, no "
+        "prose, no code fences.  Schema:\n"
+        '{"title": string|null, "byline": string|null, "date": string|null, '
+        '"blocks": [{"type": "heading"|"subheading"|"paragraph"|"quote"|'
+        '"caption"|"list_item"|"footer", "text": string}], '
+        '"continues": true|false}\n'
+        "Rules:\n"
+        "  * Transcribe the visible text VERBATIM - exact words, exact "
+        "punctuation, exact capitalization.  Do NOT summarise, paraphrase, "
+        "translate, fix typos, or invent text.\n"
+        "  * Preserve paragraph breaks.  Each paragraph is one block.\n"
+        "  * Use `heading` and `subheading` for visually emphasised "
+        "headlines, `caption` for image captions, `quote` for pull-quotes, "
+        "`list_item` for bullet/numbered list items, and `footer` for "
+        "page footers or end-notes.\n"
+        "  * Skip adverts, page numbers, navigation chrome, and watermarks.\n"
+        "  * If text runs off the edge of the page, set `continues` to true.\n"
+        "  * If no readable article is present, return blocks: []."
+    )
+
+    payload = {
+        "model": VISION_MODEL,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": instruction},
+                {"type": "image_url",
+                 "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
+            ],
+        }],
+        "temperature": 0.0,
+        "top_p": 0.9,
+        "max_tokens": 2500,
+        "stream": False,
+    }
+    reply, err = _nvidia_post(payload, VISUAL_API_KEY, "VISUAL_API_KEY", timeout=120)
+    if err:
+        log.warning("article error: %s", err)
+        return jsonify({"error": err}), 502
+
+    # The model is asked for raw JSON but sometimes wraps it in prose or
+    # a ``` block.  Grab the first balanced { ... } we can find.
+    parsed = None
+    try:
+        parsed = json.loads(reply)
+    except Exception:
+        m = re.search(r"\{[\s\S]*\}", reply)
+        if m:
+            try:
+                parsed = json.loads(m.group(0))
+            except Exception:
+                parsed = None
+    if parsed is None:
+        log.warning("article: malformed JSON from model")
+        return jsonify({"error": "model returned malformed JSON",
+                        "raw": reply}), 502
+
+    # Light sanitisation so the client can trust the shape.
+    blocks = []
+    for b in (parsed.get("blocks") or []):
+        if not isinstance(b, dict):
+            continue
+        t = (b.get("text") or "").strip()
+        if not t:
+            continue
+        typ = (b.get("type") or "paragraph").lower()
+        if typ not in ("heading", "subheading", "paragraph", "quote",
+                       "caption", "list_item", "footer"):
+            typ = "paragraph"
+        blocks.append({"type": typ, "text": t})
+    out = {
+        "title": parsed.get("title") or None,
+        "byline": parsed.get("byline") or None,
+        "date": parsed.get("date") or None,
+        "blocks": blocks,
+        "continues": bool(parsed.get("continues")),
+    }
+    return jsonify({"article": out})
 
 
 if __name__ == "__main__":
